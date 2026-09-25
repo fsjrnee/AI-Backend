@@ -1,0 +1,23 @@
+{
+  "name": "ai-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "브라우저에서 외부 AI API를 안전하게 호출하는 최소 Node.js 챗 백엔드",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0"
+  }
+}
+
+
