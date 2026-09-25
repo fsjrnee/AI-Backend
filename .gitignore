@@ -2,8 +2,8 @@ node_modules/
 .env
 .env.*
 !.env.example
+env
 npm-debug.log*
 pnpm-debug.log*
 .DS_Store
-
 
