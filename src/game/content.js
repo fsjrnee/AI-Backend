@@ -138,7 +138,7 @@ export const ENEMIES = {
   dock_enforcer: {
     id: "dock_enforcer",
     name: "갈고리패 징수꾼",
-    realm: "단련",
+    realm: "삼류 상단",
     health: 10,
     morale: 6,
     strength: "갈고리로 무기와 소매를 걸어 거리를 무너뜨린다",
@@ -151,7 +151,7 @@ export const ENEMIES = {
   warehouse_guard: {
     id: "warehouse_guard",
     name: "검은 소금 창고지기",
-    realm: "단련 상단",
+    realm: "이류",
     health: 14,
     morale: 8,
     strength: "두꺼운 장봉으로 문과 통로를 봉쇄한다",

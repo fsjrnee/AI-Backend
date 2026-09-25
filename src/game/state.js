@@ -1,4 +1,5 @@
 import { CHARACTER_OPTIONS, FACTIONS, NPCS, SCENES, findOption } from "./content.js";
+import { createMartialProgress, getRealmSnapshot } from "./growth.js";
 
 const DEFAULT_SELECTIONS = {
   origin: "border_refugee",
@@ -38,9 +39,11 @@ export function createInitialState(character = {}) {
   const maxHealth = 14 + stats.body * 2;
   const maxQi = 8 + stats.spirit * 2;
   const maxBalance = 4 + stats.agility;
+  const martialArts = [createMartialProgress(selected.martialPath)];
+  const progress = { practice: 0, combatExperience: 0, insight: 0, bodyCondition: 1 };
 
   return {
-    version: 1,
+    version: 2,
     turn: 0,
     chapter: 1,
     player: {
@@ -52,7 +55,7 @@ export function createInitialState(character = {}) {
       bond: selected.bond,
       martialPath: selected.martialPath,
       longGoal: selected.longGoal,
-      realm: { name: "초입", stage: 1, ceiling: "단련" },
+      realm: getRealmSnapshot(0, progress, martialArts),
       stats,
       resources: {
         health: maxHealth,
@@ -64,14 +67,7 @@ export function createInitialState(character = {}) {
         coins,
         time: 6,
       },
-      martialArts: [
-        {
-          id: selected.martialPath,
-          mastery: 1,
-          insight: 0,
-          tradeoff: martialTradeoff(selected.martialPath),
-        },
-      ],
+      martialArts,
       conditions: [],
       inventory: [
         { id: "travel_rations", name: "마른 양식", quantity: 2 },
@@ -79,7 +75,10 @@ export function createInitialState(character = {}) {
         { id: "worn_token", name: "낡은 인연패", quantity: 1 },
       ],
       reputation: { fame: 0, notoriety: 0, mercy: 0, reliability: 0 },
-      progress: { practice: 0, combatExperience: 0, insight: 0, bodyCondition: 1 },
+      progress,
+      growthLog: [
+        { turn: 0, type: "foundation", text: `${martialArts[0].name}의 입문 초식을 익혔다.` },
+      ],
     },
     world: {
       day: 1,
@@ -126,6 +125,13 @@ export function createInitialState(character = {}) {
     debts: [],
     grudges: [],
     delayedConsequences: [],
+    context: {
+      lastIntent: null,
+      lastOutcome: null,
+      lastChoiceId: null,
+      lastDeclaration: null,
+      newestClues: [],
+    },
     recentScenes: [],
     fatigue: {
       lastIntent: null,
@@ -237,6 +243,7 @@ export function toPublicState(state) {
     delayedConsequences: state.delayedConsequences
       .filter((entry) => entry.visibility === "public")
       .map((entry) => structuredClone(entry)),
+    context: structuredClone(state.context),
     recentScenes: structuredClone(state.recentScenes.slice(-6)),
     fatigue: structuredClone(state.fatigue),
     facts: structuredClone(state.facts),
@@ -283,15 +290,6 @@ function relationStage(value) {
   if (value.trust <= -3 || value.fear >= 5) return "경계하는 적대자";
   if (value.trust <= -1) return "불편한 관계";
   return "낯선 사이";
-}
-
-function martialTradeoff(path) {
-  return {
-    flowing_sword: "연계와 반격에 강하나 좁은 공간과 중갑에 약함",
-    stone_fist: "균형과 제압에 강하나 사거리가 짧음",
-    swallow_step: "거리와 지형 장악에 강하나 직접 위력이 낮음",
-    healing_needles: "치료와 비살상 제압에 강하나 준비와 정확한 관찰이 필요함",
-  }[path];
 }
 
 function sanitizeName(value) {

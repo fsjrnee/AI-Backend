@@ -30,6 +30,11 @@ test("정적 채팅 화면을 제공한다", async () => {
 
     assert.equal(response.status, 200);
     assert.match(html, /무림초행/);
+    assert.match(html, /현재 상황에서 시도해 볼 만한 행동/);
+    assert.match(html, /무공과 성장/);
+
+    const script = await (await fetch(`${baseUrl}/app.js`)).text();
+    assert.doesNotMatch(script, /d20=|난이도 \$\{/);
   });
 });
 

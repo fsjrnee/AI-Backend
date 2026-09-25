@@ -29,6 +29,8 @@ let sessionId = localStorage.getItem(STORAGE_KEY);
 let latestChoices = [];
 let busy = false;
 
+const realmNames = ["삼류", "이류", "일류", "절정", "초절정", "화경", "현경", "생사경", "조화경"];
+
 boot();
 
 async function boot() {
@@ -125,10 +127,21 @@ elements.newGameButton.addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
+for (const tab of document.querySelectorAll(".state-tab")) {
+  tab.addEventListener("click", () => {
+    for (const candidate of document.querySelectorAll(".state-tab")) {
+      candidate.classList.toggle("active", candidate === tab);
+    }
+    for (const panel of document.querySelectorAll(".state-panel")) {
+      panel.hidden = panel.id !== tab.dataset.statePanel;
+    }
+  });
+}
+
 async function performAction({ message, choiceId, displayText }) {
   if (!sessionId || busy) return;
   const playerText = displayText || message;
-  appendMessage(playerText, "player");
+  const playerMessage = appendMessage(playerText, "player");
   setBusy(true, "action");
 
   try {
@@ -140,6 +153,7 @@ async function performAction({ message, choiceId, displayText }) {
     for (const event of result.resolution?.preEvents || []) {
       appendMessage(event, "system");
     }
+    updateMessageText(playerMessage, result.resolution?.actionNarration || playerText);
     appendMessage(result.reply, "narrator", result.resolution);
     if (result.warning) showToast(result.warning);
     updateGame(result);
@@ -190,8 +204,7 @@ function updateGame(result) {
   document.querySelector("#turn-value").textContent = state.turn;
 
   document.querySelector("#player-name").textContent = state.player.name;
-  document.querySelector("#realm-badge").textContent =
-    `${state.player.realm.name} ${state.player.realm.stage}단`;
+  document.querySelector("#realm-badge").textContent = state.player.realm.name;
   updateResource("health", state.player.resources.health, state.player.resources.maxHealth);
   updateResource("qi", state.player.resources.qi, state.player.resources.maxQi);
   updateResource("balance", state.player.resources.balance, state.player.resources.maxBalance);
@@ -200,6 +213,7 @@ function updateGame(result) {
   renderList("#goal-list", state.goals.active, "진행 중인 목표가 없습니다.");
   renderClues(state.clues);
   renderRelationships(state.relationships);
+  renderGrowth(state.player);
   renderChoices(result.choices || []);
 }
 
@@ -242,10 +256,10 @@ function appendMessage(text, role, resolution) {
   label.className = "message-label";
   label.textContent = labels[role] || "기록";
   bubble.className = "bubble";
-  bubble.textContent = text;
+  bubble.textContent = normalizeDisplayText(text);
   item.append(label, bubble);
 
-  if (resolution?.roll || resolution?.outcome) {
+  if (resolution?.outcome) {
     const strip = document.createElement("div");
     strip.className = "roll-strip";
     const outcome = document.createElement("span");
@@ -253,15 +267,15 @@ function appendMessage(text, role, resolution) {
     outcome.textContent = outcomeLabel(resolution.outcome);
     strip.append(outcome);
 
-    if (resolution.roll) {
-      const roll = document.createElement("span");
-      roll.textContent =
-        `${resolution.roll.die} ${signed(resolution.roll.modifier)} = ${resolution.roll.total} / 난이도 ${resolution.roll.dc}`;
-      strip.append(roll);
-    }
     for (const cost of (resolution.costs || []).slice(0, 3)) {
       const tag = document.createElement("span");
       tag.textContent = cost;
+      strip.append(tag);
+    }
+    for (const growth of (resolution.growth || []).slice(0, 2)) {
+      const tag = document.createElement("span");
+      tag.className = "growth-chip";
+      tag.textContent = growth;
       strip.append(tag);
     }
     item.append(strip);
@@ -269,6 +283,12 @@ function appendMessage(text, role, resolution) {
 
   elements.messages.append(item);
   elements.messages.scrollTop = elements.messages.scrollHeight;
+  return item;
+}
+
+function updateMessageText(item, text) {
+  const bubble = item?.querySelector(".bubble");
+  if (bubble) bubble.textContent = normalizeDisplayText(text);
 }
 
 function updateResource(id, value, max) {
@@ -328,6 +348,108 @@ function renderRelationships(relationships) {
     item.append(name, state);
     return item;
   }));
+}
+
+function renderGrowth(player) {
+  const realm = player.realm;
+  document.querySelector("#growth-realm-name").textContent = realm.name;
+  document.querySelector("#growth-realm-description").textContent = realm.description;
+  document.querySelector("#next-realm-badge").textContent = realm.nextName
+    ? `다음 · ${realm.nextName}`
+    : "무학의 완성";
+
+  const ladder = document.querySelector("#realm-ladder");
+  ladder.replaceChildren(...realmNames.map((name, index) => {
+    const step = document.createElement("span");
+    step.textContent = name;
+    step.className = index < realm.index ? "passed" : index === realm.index ? "current" : "locked";
+    return step;
+  }));
+
+  const status = document.querySelector("#breakthrough-status");
+  status.textContent = realm.nextName
+    ? realm.eligible ? "돌파 가능" : "준비 중"
+    : "최종 경지";
+  status.classList.toggle("ready", realm.eligible);
+  const requirements = document.querySelector("#breakthrough-requirements");
+  const requirementLabels = {
+    mastery: "주력 무공 숙련",
+    practice: "수련 축적",
+    combatExperience: "실전 경험",
+    insight: "깨달음",
+    bodyCondition: "신체 준비",
+  };
+  requirements.replaceChildren(...Object.entries(realm.readiness || {}).map(([key, value]) => {
+    const row = document.createElement("div");
+    const label = document.createElement("span");
+    const track = document.createElement("div");
+    const fill = document.createElement("i");
+    const amount = document.createElement("strong");
+    row.className = `growth-row${value.met ? " met" : ""}`;
+    label.textContent = requirementLabels[key] || key;
+    track.className = "growth-track";
+    fill.style.width = `${Math.min(100, (value.current / value.required) * 100)}%`;
+    track.append(fill);
+    amount.textContent = `${value.current}/${value.required}`;
+    row.append(label, track, amount);
+    return row;
+  }));
+
+  const martialList = document.querySelector("#martial-art-list");
+  martialList.replaceChildren(...player.martialArts.map((art) => {
+    const card = document.createElement("article");
+    const heading = document.createElement("div");
+    const title = document.createElement("strong");
+    const level = document.createElement("span");
+    const principle = document.createElement("p");
+    const mastery = document.createElement("div");
+    const tradeoff = document.createElement("p");
+    const techniques = document.createElement("ul");
+
+    card.className = "martial-art";
+    heading.className = "martial-heading";
+    title.textContent = `${art.name} · ${art.category}`;
+    level.textContent = `${art.level} · 숙련 ${art.mastery}`;
+    heading.append(title, level);
+    principle.className = "martial-principle";
+    principle.textContent = art.principle;
+    mastery.className = "mastery-track";
+    const masteryFill = document.createElement("i");
+    masteryFill.style.width = `${Math.min(100, (art.mastery / 60) * 100)}%`;
+    mastery.append(masteryFill);
+    tradeoff.className = "tradeoff";
+    tradeoff.textContent = `교환조건 · ${art.branch?.tradeoff || art.tradeoff}`;
+    techniques.className = "technique-list";
+    techniques.replaceChildren(...art.techniques.map((technique) => {
+      const item = document.createElement("li");
+      const techniqueName = document.createElement("strong");
+      const description = document.createElement("span");
+      techniqueName.textContent = technique.name;
+      description.textContent = technique.description;
+      item.append(techniqueName, description);
+      return item;
+    }));
+    card.append(heading, principle, mastery, tradeoff, techniques);
+
+    if (art.availableBranches?.length) {
+      const notice = document.createElement("p");
+      notice.className = "branch-notice";
+      notice.textContent = "새 빌드 분기가 열렸습니다. 이야기 아래의 상황별 제안에서 한 계통을 선택할 수 있습니다.";
+      card.append(notice);
+    } else if (art.branch) {
+      const branch = document.createElement("p");
+      branch.className = "branch-selected";
+      branch.textContent = `선택한 계통 · ${art.branch.name} — ${art.branch.title}`;
+      card.append(branch);
+    }
+    return card;
+  }));
+
+  renderList(
+    "#growth-log",
+    player.growthLog.slice(-6).reverse().map((entry) => `${entry.turn}턴 · ${entry.text}`),
+    "아직 기록할 만한 성장이 없습니다.",
+  );
 }
 
 function renderList(selector, values, emptyText) {
@@ -409,5 +531,12 @@ function outcomeLabel(outcome) {
 
 function signed(value) {
   return value >= 0 ? `+${value}` : String(value);
+}
+
+function normalizeDisplayText(value) {
+  return String(value || "")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 

@@ -97,8 +97,8 @@
 
             <section class="decision-panel" aria-label="현재 행동 선택">
               <div class="decision-header">
-                <h3>어떻게 하시겠습니까?</h3>
-                <span>선택하거나 자유롭게 입력</span>
+                <h3>현재 상황에서 시도해 볼 만한 행동</h3>
+                <span>상황에 따라 달라지는 제안 · 자유 입력 가능</span>
               </div>
               <div id="choices" class="choices"></div>
             </section>
@@ -118,13 +118,19 @@
           </section>
 
           <aside class="state-column" aria-label="게임 상태">
+            <nav class="state-tabs" aria-label="상태 화면 전환">
+              <button class="state-tab active" type="button" data-state-panel="overview-panel">인물과 사건</button>
+              <button class="state-tab" type="button" data-state-panel="martial-panel">무공과 성장</button>
+            </nav>
+
+            <div id="overview-panel" class="state-panel">
             <section class="state-card player-card">
               <div class="card-heading">
                 <div>
                   <p class="section-kicker">신참 무인</p>
                   <h3 id="player-name">무명</h3>
                 </div>
-                <span id="realm-badge" class="realm-badge">초입</span>
+                <span id="realm-badge" class="realm-badge">삼류</span>
               </div>
               <div class="resource-row">
                 <span>체력</span>
@@ -173,6 +179,40 @@
               <p class="section-kicker">인연과 세평</p>
               <div id="relationship-list" class="relationship-list"></div>
             </section>
+            </div>
+
+            <div id="martial-panel" class="state-panel" hidden>
+              <section class="state-card realm-card">
+                <p class="section-kicker">무인의 경지</p>
+                <div class="realm-heading">
+                  <div>
+                    <h3 id="growth-realm-name">삼류</h3>
+                    <p id="growth-realm-description"></p>
+                  </div>
+                  <span id="next-realm-badge" class="count-badge"></span>
+                </div>
+                <div id="realm-ladder" class="realm-ladder" aria-label="경지 단계"></div>
+              </section>
+
+              <section class="state-card">
+                <div class="card-heading inline">
+                  <p class="section-kicker">돌파 준비</p>
+                  <span id="breakthrough-status" class="growth-status"></span>
+                </div>
+                <div id="breakthrough-requirements" class="growth-requirements"></div>
+                <p class="growth-hint">조건을 모두 채운 뒤 자유 행동에 ‘경지 돌파’를 선언할 수 있습니다.</p>
+              </section>
+
+              <section class="state-card">
+                <p class="section-kicker">보유 무공</p>
+                <div id="martial-art-list" class="martial-art-list"></div>
+              </section>
+
+              <section class="state-card">
+                <p class="section-kicker">성장 기록</p>
+                <ul id="growth-log" class="plain-list growth-log"></ul>
+              </section>
+            </div>
 
             <button id="new-game-button" class="ghost-button" type="button">새 인물로 시작</button>
           </aside>
