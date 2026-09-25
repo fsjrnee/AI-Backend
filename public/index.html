@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Backend 테스트</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="chat-shell">
+      <header class="chat-header">
+        <div>
+          <p class="eyebrow">AI BACKEND</p>
+          <h1>간단한 AI 채팅</h1>
+        </div>
+        <span class="status" aria-label="서버 연결 상태">
+          <span class="status-dot"></span>
+          준비됨
+        </span>
+      </header>
+
+      <section id="messages" class="messages" aria-live="polite" aria-label="채팅 내용">
+        <div class="message assistant">
+          <div class="bubble">안녕하세요! 아래 입력창에 메시지를 보내 보세요.</div>
+        </div>
+      </section>
+
+      <form id="chat-form" class="composer">
+        <label class="sr-only" for="message-input">메시지</label>
+        <textarea
+          id="message-input"
+          name="message"
+          rows="1"
+          maxlength="4000"
+          placeholder="메시지를 입력하세요"
+          required
+        ></textarea>
+        <button id="send-button" type="submit">전송</button>
+      </form>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
+
+
