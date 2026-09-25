@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createApp } from "../server.js";
+import { GameEngine } from "../src/game/engine.js";
 import { AiServiceError } from "../src/services/aiService.js";
 
 async function withServer(app, callback) {
@@ -28,7 +29,38 @@ test("정적 채팅 화면을 제공한다", async () => {
     const html = await response.text();
 
     assert.equal(response.status, 200);
-    assert.match(html, /간단한 AI 채팅/);
+    assert.match(html, /무림초행/);
+  });
+});
+
+test("게임 생성과 행동 API가 상태와 판정 결과를 반환한다", async () => {
+  const gameEngine = new GameEngine({
+    rng: () => 0.9,
+    narrator: async ({ resolution }) => ({ text: resolution.summary, mode: "test" }),
+  });
+  const app = createApp({ gameEngine });
+
+  await withServer(app, async (baseUrl) => {
+    const startResponse = await fetch(`${baseUrl}/api/game/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ character: { name: "연무" } }),
+    });
+    const started = await startResponse.json();
+
+    assert.equal(startResponse.status, 201);
+    assert.equal(started.state.player.name, "연무");
+
+    const actionResponse = await fetch(`${baseUrl}/api/game/action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: started.sessionId, choiceId: "inspect_tracks" }),
+    });
+    const action = await actionResponse.json();
+
+    assert.equal(actionResponse.status, 200);
+    assert.ok(action.resolution.roll);
+    assert.ok(action.state.clues.length >= 1);
   });
 });
 
@@ -75,8 +107,10 @@ test("AI 서비스 오류의 상태 코드와 메시지를 전달한다", async 
     });
 
     assert.equal(response.status, 503);
-    assert.deepEqual(await response.json(), { error: "AI가 준비되지 않았습니다." });
+    assert.deepEqual(await response.json(), {
+      error: "AI가 준비되지 않았습니다.",
+      code: "AI_NOT_CONFIGURED",
+    });
   });
 });
-
 

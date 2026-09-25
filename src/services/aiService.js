@@ -54,8 +54,9 @@ export async function getAiReply(message, options = {}) {
   }
 
   const model = env[provider.modelName]?.trim() || provider.defaultModel;
-  const maxTokens = parsePositiveInteger(env.AI_MAX_TOKENS, 512);
+  const maxTokens = parsePositiveInteger(options.maxTokens ?? env.AI_MAX_TOKENS, 512);
   const timeoutMs = parsePositiveInteger(env.AI_REQUEST_TIMEOUT_MS, 30_000);
+  const systemPrompt = options.systemPrompt || SYSTEM_PROMPT;
 
   return provider.request({
     apiKey,
@@ -63,6 +64,7 @@ export async function getAiReply(message, options = {}) {
     maxTokens,
     message,
     model,
+    systemPrompt,
     timeoutMs,
   });
 }
@@ -79,7 +81,7 @@ async function requestGroq(options) {
       body: JSON.stringify({
         model: options.model,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: options.systemPrompt },
           { role: "user", content: options.message },
         ],
         max_completion_tokens: options.maxTokens,
@@ -102,7 +104,7 @@ async function requestOpenAI(options) {
       },
       body: JSON.stringify({
         model: options.model,
-        instructions: SYSTEM_PROMPT,
+        instructions: options.systemPrompt,
         input: options.message,
         max_output_tokens: options.maxTokens,
         store: false,
@@ -132,7 +134,7 @@ async function requestGemini(options) {
         "x-goog-api-key": options.apiKey,
       },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        systemInstruction: { parts: [{ text: options.systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: options.message }] }],
         generationConfig: { maxOutputTokens: options.maxTokens },
       }),
@@ -213,5 +215,4 @@ function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
-
 

@@ -2,7 +2,7 @@
   "name": "ai-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "브라우저에서 외부 AI API를 안전하게 호출하는 최소 Node.js 챗 백엔드",
+  "description": "규칙 엔진과 외부 AI 서술을 결합한 1인용 채팅형 무협 RPG",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -19,5 +19,4 @@
     "express": "^5.1.0"
   }
 }
-
 

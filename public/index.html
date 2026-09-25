@@ -3,44 +3,186 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Backend 테스트</title>
+    <meta name="theme-color" content="#15130f">
+    <title>무림초행 · AI 무협 RPG</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <main class="chat-shell">
-      <header class="chat-header">
-        <div>
-          <p class="eyebrow">AI BACKEND</p>
-          <h1>간단한 AI 채팅</h1>
+    <main class="game-shell">
+      <header class="masthead">
+        <div class="brand-mark" aria-hidden="true">武</div>
+        <div class="brand-copy">
+          <p class="eyebrow">AI WUXIA RPG</p>
+          <h1>무림초행</h1>
+          <p class="subtitle">선택은 흔적을 남기고, 강호는 기다려 주지 않는다.</p>
         </div>
-        <span class="status" aria-label="서버 연결 상태">
+        <div id="connection-status" class="connection-status">
           <span class="status-dot"></span>
-          준비됨
-        </span>
+          서버 확인 중
+        </div>
       </header>
 
-      <section id="messages" class="messages" aria-live="polite" aria-label="채팅 내용">
-        <div class="message assistant">
-          <div class="bubble">안녕하세요! 아래 입력창에 메시지를 보내 보세요.</div>
+      <section id="start-screen" class="start-screen">
+        <div class="intro-copy">
+          <p class="section-kicker">첫 장 · 비 내리는 나루</p>
+          <h2>강호에서 어떤 사람으로 기억되겠습니까?</h2>
+          <p>
+            생성은 짧지만 모든 선택이 판정, 대화, 인연과 장기 사건에 영향을 줍니다.
+            정답 조합은 없습니다.
+          </p>
+        </div>
+
+        <form id="character-form" class="character-form">
+          <label class="field field-name">
+            <span>이름</span>
+            <input id="character-name" name="name" maxlength="16" value="연무" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>출신</span>
+            <select id="origin-select" name="origin"></select>
+            <small id="origin-description"></small>
+          </label>
+          <label class="field">
+            <span>과거 사건</span>
+            <select id="past-select" name="past"></select>
+            <small id="past-description"></small>
+          </label>
+          <label class="field">
+            <span>초기 소질</span>
+            <select id="talent-select" name="talent"></select>
+            <small id="talent-description"></small>
+          </label>
+          <label class="field">
+            <span>신념 또는 금기</span>
+            <select id="tenet-select" name="tenet"></select>
+            <small id="tenet-description"></small>
+          </label>
+          <label class="field">
+            <span>시작 인연</span>
+            <select id="bond-select" name="bond"></select>
+            <small id="bond-description"></small>
+          </label>
+          <label class="field">
+            <span>초기 무공</span>
+            <select id="martial-path-select" name="martialPath"></select>
+            <small id="martial-path-description"></small>
+          </label>
+          <label class="field">
+            <span>개인 장기 목표</span>
+            <select id="long-goal-select" name="longGoal"></select>
+            <small id="long-goal-description"></small>
+          </label>
+          <button id="start-button" class="primary-button" type="submit">강호에 발을 들인다</button>
+        </form>
+      </section>
+
+      <section id="game-screen" class="game-screen" hidden>
+        <div class="scene-banner">
+          <div>
+            <p id="scene-meta" class="scene-meta"></p>
+            <h2 id="scene-location"></h2>
+            <p id="scene-objective" class="scene-objective"></p>
+          </div>
+          <div class="turn-box">
+            <span>장</span>
+            <strong id="chapter-value">1</strong>
+            <span>턴</span>
+            <strong id="turn-value">0</strong>
+          </div>
+        </div>
+
+        <div class="play-layout">
+          <section class="story-column">
+            <div id="messages" class="messages" aria-live="polite" aria-label="이야기 기록"></div>
+
+            <section class="decision-panel" aria-label="현재 행동 선택">
+              <div class="decision-header">
+                <h3>어떻게 하시겠습니까?</h3>
+                <span>선택하거나 자유롭게 입력</span>
+              </div>
+              <div id="choices" class="choices"></div>
+            </section>
+
+            <form id="action-form" class="composer">
+              <label class="sr-only" for="action-input">자유 행동</label>
+              <textarea
+                id="action-input"
+                name="message"
+                rows="2"
+                maxlength="600"
+                placeholder="목표와 방법을 구체적으로 선언하세요. 예: 등잔을 꺼 시야를 가린 뒤 장부 쪽으로 이동한다."
+                required
+              ></textarea>
+              <button id="send-button" type="submit">행동</button>
+            </form>
+          </section>
+
+          <aside class="state-column" aria-label="게임 상태">
+            <section class="state-card player-card">
+              <div class="card-heading">
+                <div>
+                  <p class="section-kicker">신참 무인</p>
+                  <h3 id="player-name">무명</h3>
+                </div>
+                <span id="realm-badge" class="realm-badge">초입</span>
+              </div>
+              <div class="resource-row">
+                <span>체력</span>
+                <div class="resource-track"><i id="health-bar"></i></div>
+                <strong id="health-value"></strong>
+              </div>
+              <div class="resource-row qi">
+                <span>내력</span>
+                <div class="resource-track"><i id="qi-bar"></i></div>
+                <strong id="qi-value"></strong>
+              </div>
+              <div class="resource-row balance">
+                <span>균형</span>
+                <div class="resource-track"><i id="balance-bar"></i></div>
+                <strong id="balance-value"></strong>
+              </div>
+              <div id="condition-list" class="tag-list"></div>
+            </section>
+
+            <section id="combat-card" class="state-card combat-card" hidden>
+              <p class="section-kicker danger">교전 중</p>
+              <h3 id="enemy-name"></h3>
+              <p id="combat-objective"></p>
+              <dl class="compact-list">
+                <div><dt>거리</dt><dd id="combat-distance"></dd></div>
+                <div><dt>지형</dt><dd id="combat-terrain"></dd></div>
+                <div><dt>적 체력</dt><dd id="enemy-health"></dd></div>
+                <div><dt>적 사기</dt><dd id="enemy-morale"></dd></div>
+              </dl>
+            </section>
+
+            <section class="state-card">
+              <p class="section-kicker">현재 목표</p>
+              <ul id="goal-list" class="plain-list"></ul>
+            </section>
+
+            <section class="state-card">
+              <div class="card-heading inline">
+                <p class="section-kicker">확보한 단서</p>
+                <span id="clue-count" class="count-badge">0</span>
+              </div>
+              <ul id="clue-list" class="plain-list clue-list"></ul>
+            </section>
+
+            <section class="state-card">
+              <p class="section-kicker">인연과 세평</p>
+              <div id="relationship-list" class="relationship-list"></div>
+            </section>
+
+            <button id="new-game-button" class="ghost-button" type="button">새 인물로 시작</button>
+          </aside>
         </div>
       </section>
 
-      <form id="chat-form" class="composer">
-        <label class="sr-only" for="message-input">메시지</label>
-        <textarea
-          id="message-input"
-          name="message"
-          rows="1"
-          maxlength="4000"
-          placeholder="메시지를 입력하세요"
-          required
-        ></textarea>
-        <button id="send-button" type="submit">전송</button>
-      </form>
+      <div id="toast" class="toast" role="status" hidden></div>
     </main>
 
     <script src="/app.js" defer></script>
   </body>
 </html>
-
 
