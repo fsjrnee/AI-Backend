@@ -80,4 +80,36 @@ test("외부 API 오류를 502 오류로 변환한다", async () => {
   );
 });
 
+test("제공사별 토큰 한도·미완료 종료를 정상 문장으로 반환하지 않는다", async () => {
+  for (const [provider, key, data] of [
+    ["groq", "GROQ_API_KEY", { choices: [{ finish_reason: "length", message: { content: "문장처럼 끝나도." } }] }],
+    ["openai", "OPENAI_API_KEY", { status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output_text: "문장처럼 끝나도." }],
+    ["gemini", "GEMINI_API_KEY", { candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: "문장처럼 끝나도." }] } }] }],
+  ]) {
+    await assert.rejects(getAiReply("안녕", {
+      env: { AI_PROVIDER: provider, [key]: "test-key" },
+      fetchImpl: async () => jsonResponse(data),
+    }), (error) => error.code === "AI_INCOMPLETE_RESPONSE");
+  }
+});
+
+test("서술용 토큰 예산은 낮은 기본 환경 설정보다 우선한다", async () => {
+  for (const [provider, key, field, data] of [
+    ["groq", "GROQ_API_KEY", "max_completion_tokens", { choices: [{ finish_reason: "stop", message: { content: "완결." } }] }],
+    ["openai", "OPENAI_API_KEY", "max_output_tokens", { status: "completed", output_text: "완결." }],
+    ["gemini", "GEMINI_API_KEY", "maxOutputTokens", { candidates: [{ finishReason: "STOP", content: { parts: [{ thought: true, text: "비공개 추론" }, { text: "완결." }] } }] }],
+  ]) {
+    const reply = await getAiReply("안녕", {
+      env: { AI_PROVIDER: provider, [key]: "test-key", AI_MAX_TOKENS: "10" },
+      maxTokens: 3200,
+      fetchImpl: async (_url, options) => {
+        const body = JSON.parse(options.body);
+        assert.equal((body.generationConfig || body)[field], 3200);
+        return jsonResponse(data);
+      },
+    });
+    assert.equal(reply, "완결.");
+  }
+});
+
 

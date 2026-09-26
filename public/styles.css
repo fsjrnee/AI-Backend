@@ -350,6 +350,7 @@ textarea:focus {
 }
 
 .messages {
+  position: relative;
   min-height: 380px;
   max-height: calc(100vh - 430px);
   overflow-y: auto;
@@ -955,21 +956,38 @@ input:disabled {
 
 .relationship {
   display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 8px;
-  padding-top: 7px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
+  padding-top: 12px;
   border-top: 1px solid rgba(216, 201, 168, 0.08);
 }
 
 .relationship strong {
   color: #ccbea5;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .relationship span {
   color: #8f846f;
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.7;
 }
+
+.relationship p, .starting-bond p, .social-summary {
+  margin: 0;
+  color: #b9ad98;
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.relationship .relation-stage { color: #d6c086; }
+.relationship details { color: #a69b85; font-size: 12px; }
+.relationship summary { cursor: pointer; padding: 4px 0; }
+.relationship details p { margin-top: 7px; }
+.starting-bond { padding: 12px; background: rgba(199, 167, 90, 0.06); border-radius: 6px; }
+.starting-bond strong { color: #d6c086; font-size: 13px; }
+.starting-bond p { margin-top: 7px; }
 
 .ghost-button {
   min-height: 42px;

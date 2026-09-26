@@ -4,6 +4,7 @@ import test from "node:test";
 import { createApp } from "../server.js";
 import { GameEngine } from "../src/game/engine.js";
 import { AiServiceError } from "../src/services/aiService.js";
+import { isCompleteNarration } from "../src/game/narrator.js";
 
 async function withServer(app, callback) {
   const server = app.listen(0);
@@ -94,6 +95,24 @@ test("빈 메시지는 400을 반환한다", async () => {
 
     assert.equal(response.status, 400);
     assert.deepEqual(await response.json(), { error: "메시지를 입력해 주세요." });
+  });
+});
+
+test("실제 게임 API 경로는 짧은 AI 응답에도 500자 이상의 본문을 반환한다", async () => {
+  await withServer(createApp({ chatService: async () => "짧은 문장." }), async (baseUrl) => {
+    const started = await (await fetch(`${baseUrl}/api/game/start`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ character: {} }),
+    })).json();
+    assert.ok(isCompleteNarration(started.reply));
+    for (const message of ["수레를 조사한다", "현재 상태", "시간을 되돌려 사건을 없앤다", "잠시 휴식한다"]) {
+      const response = await fetch(`${baseUrl}/api/game/action`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: started.sessionId, message }),
+      });
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.ok(isCompleteNarration(result.reply));
+      assert.equal(result.narrationMode, "fallback");
+    }
   });
 });
 

@@ -125,8 +125,8 @@ test("행동 이후 제안은 새 단서와 직전 선택을 반영해 달라진
 
   assert.notDeepEqual(afterLabels, beforeLabels);
   assert.ok(afterLabels.some((label) => label.includes("방금 확인한")));
-  assert.ok(result.resolution.actionNarration.length > "수레와 진흙 자국을 조사한다".length * 2);
-  assert.match(result.resolution.actionNarration, /^담우는 행동의 목표와 순서를/);
+  assert.equal(result.resolution.actionNarration, `${beforeLabels[1]}.`);
+  assert.doesNotMatch(result.resolution.actionNarration, /행동의 목표와 순서|성공 가능성/);
   assert.doesNotMatch(result.resolution.actionNarration, /는다기로|한다기로/);
   assert.doesNotMatch(result.resolution.actionNarration, /<br/i);
 });
