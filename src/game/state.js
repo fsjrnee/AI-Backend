@@ -1,5 +1,6 @@
 import { CHARACTER_OPTIONS, FACTIONS, NPCS, SCENES, findOption } from "./content.js";
 import { createMartialProgress, getRealmSnapshot } from "./growth.js";
+import { meetSceneNpcs, publicRelations, publicReputation, startingBond } from "./social.js";
 
 const DEFAULT_SELECTIONS = {
   origin: "border_refugee",
@@ -42,8 +43,8 @@ export function createInitialState(character = {}) {
   const martialArts = [createMartialProgress(selected.martialPath)];
   const progress = { practice: 0, combatExperience: 0, insight: 0, bodyCondition: 1 };
 
-  return {
-    version: 2,
+  const state = {
+    version: 3,
     turn: 0,
     chapter: 1,
     player: {
@@ -124,6 +125,8 @@ export function createInitialState(character = {}) {
     promises: [],
     debts: [],
     grudges: [],
+    reputationEvents: [],
+    completedSocialEvents: [],
     delayedConsequences: [],
     context: {
       lastIntent: null,
@@ -167,6 +170,8 @@ export function createInitialState(character = {}) {
       ),
     },
   };
+  meetSceneNpcs(state);
+  return state;
 }
 
 export function validateCharacterSelection(character) {
@@ -235,7 +240,9 @@ export function toPublicState(state) {
     goals: structuredClone(state.goals),
     quests: structuredClone(state.quests),
     clues: structuredClone(state.clues),
-    relationships: publicRelations(state.relationships),
+    relationships: publicRelations(state),
+    startingBond: startingBond(state),
+    reputation: publicReputation(state),
     factions: structuredClone(state.factions),
     promises: structuredClone(state.promises),
     debts: structuredClone(state.debts),
@@ -265,31 +272,6 @@ export function toPublicState(state) {
 
 function relation(trust, affection, fear, debt, interest, knownFacts) {
   return { trust, affection, fear, debt, interest, knownFacts, stage: "낯선 사이" };
-}
-
-function publicRelations(relationships) {
-  return Object.fromEntries(
-    Object.entries(relationships).map(([npcId, value]) => {
-      const npc = NPCS.find((candidate) => candidate.id === npcId);
-      return [npcId, {
-        name: npc?.name || npcId,
-        trust: value.trust,
-        affection: value.affection,
-        fear: value.fear,
-        debt: value.debt,
-        interest: value.interest,
-        stage: relationStage(value),
-      }];
-    }),
-  );
-}
-
-function relationStage(value) {
-  if (value.trust >= 5 && value.debt > 0) return "목숨을 맡길 동료";
-  if (value.trust >= 3) return "신뢰하는 협력자";
-  if (value.trust <= -3 || value.fear >= 5) return "경계하는 적대자";
-  if (value.trust <= -1) return "불편한 관계";
-  return "낯선 사이";
 }
 
 function sanitizeName(value) {

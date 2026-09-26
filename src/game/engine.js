@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import { ENEMIES, NPCS, SCENES } from "./content.js";
+import { ENEMIES, FACTIONS, NPCS, SCENES } from "./content.js";
 import {
   MARTIAL_DEFINITIONS,
   REALM_LADDER,
@@ -10,6 +10,7 @@ import {
 } from "./growth.js";
 import { introductionNarration, narrateTurn } from "./narrator.js";
 import { createInitialState, recordChange, toPublicState } from "./state.js";
+import { meetSceneNpcs, recordReputation, RELATION_LABELS, SCENE_NPCS } from "./social.js";
 
 const DIFFICULTIES = {
   trivial: { name: "평이", dc: 0 },
@@ -85,8 +86,9 @@ export class GameEngine {
     const intent = classifyIntent(declaration, choice?.intent);
     if (intent === "status") {
       const resolution = makeResolution(intent, declaration);
+      resolution.sourceSceneId = state.world.sceneId;
       resolution.outcome = "automatic";
-      resolution.summary = `${state.player.name}은 호흡을 고르고 현재 상황을 확인했다.`;
+      resolution.summary = `${state.player.name}${hasFinalConsonant(state.player.name) ? "은" : "는"} 현재 몸의 상태와 눈앞의 상황을 확인했다.`;
       resolution.changedSituation = "시간은 흐르지 않았다.";
       resolution.actionNarration = describePlayerAction(state, { declaration, intent }, resolution);
       const narration = await this.narrator({ state, action: declaration, resolution });
@@ -104,6 +106,7 @@ export class GameEngine {
 
   resolveTurn(state, action) {
     const resolution = makeResolution(action.intent, action.declaration);
+    resolution.sourceSceneId = state.world.sceneId;
     const dueEvents = processDueConsequences(state);
     resolution.preEvents.push(...dueEvents);
 
@@ -401,12 +404,10 @@ function applyIntentEffects(state, action, resolution) {
       break;
     }
     case "talk": {
-      const npcId = action.choice?.id === "question_boatman"
-        ? "gang_mujin"
-        : sceneNpc(state.world.sceneId);
+      const npcId = targetNpc(state, action);
       const npc = NPCS.find((candidate) => candidate.id === npcId);
       const delta = success ? (outcome === "strong_success" ? 2 : 1) : -1;
-      changeRelation(state, npcId, "trust", delta, "대화의 결과", resolution);
+      changeRelation(state, npcId, "trust", delta, success ? "질문에 응하고 아는 범위에서 이야기를 나눔" : "질문의 의도를 의심하며 말을 아낌", resolution);
       resolution.summary = success
         ? "상대는 말의 의도와 대가를 납득하고 아는 범위에서 답했다."
         : "상대는 질문의 속내를 의심하며 필요한 말만 남겼다.";
@@ -508,18 +509,19 @@ function applyChoiceEffects(state, action, resolution) {
     return;
   }
 
-  if (id === "treat_courier" && positive) {
+  if (id === "treat_courier" && positive && !state.completedSocialEvents.includes(id)) {
+    state.completedSocialEvents.push(id);
+    resolution.summary = "서연화의 다친 팔을 살핀 뒤 습격 당시의 이야기를 들었다. 서연화는 질문을 피하지 않고 자신이 겪은 일을 차례로 답했다.";
     changeRelation(state, "seo_yeonhwa", "trust", 2, "먼저 부상을 돌봄", resolution);
+    changeRelation(state, "seo_yeonhwa", "affection", 1, "대답을 재촉하기 전에 다친 팔을 살핌", resolution);
+    changeRelation(state, "seo_yeonhwa", "debt", 1, "부상을 돌봐 준 은혜가 남음", resolution);
     addClue(state, {
       id: "planned_ambush",
       text: "습격자는 약재 수레의 교대 시간과 호위 공백을 정확히 알고 있었다",
       source: "서연화의 증언",
       certainty: "증언",
     }, resolution);
-    if (state.player.tenet === "keep_promise") {
-      state.promises.push({ to: "seo_yeonhwa", text: "오늘 밤 전 약재를 되찾겠다", dueTurn: 6, status: "active" });
-      resolution.gains.push("서연화와의 약속");
-    }
+    recordReputation(state, { id: "courier_care", axis: "mercy", amount: 1, audience: "서연화", scope: "백로진 나루 · 당사자만", source: "직접 겪은 일", certainty: "목격", text: "다친 사람을 먼저 돌보는 이로 기억한다.", cause: "서연화의 부상을 살핌" });
   }
 
   if (id === "inspect_tracks" && positive) {
@@ -532,17 +534,20 @@ function applyChoiceEffects(state, action, resolution) {
   }
 
   if (id === "question_boatman" && positive) {
-    changeRelation(state, "gang_mujin", "trust", 1, "증언을 강요하지 않음", resolution);
-    state.debts.push({ from: "gang_mujin", to: "player", reason: "아들의 기록을 성급히 공개하지 않음", value: 1 });
-    resolution.gains.push("강무진의 작은 빚");
+    if (!state.completedSocialEvents.includes(id)) {
+      state.completedSocialEvents.push(id);
+      changeRelation(state, "gang_mujin", "trust", 1, "물길에 관해 직접 본 사실을 확인함", resolution);
+    }
   }
 
   if (id === "chase_shadow" && !positive) {
     addCondition(state, "발목 타박", 3, resolution);
   }
 
-  if (id === "rescue_workers" && positive) {
-    changeNumber(state, "player.reputation.mercy", 2, "인부 구조를 우선함", resolution);
+  if (id === "rescue_workers" && positive && !state.completedSocialEvents.includes(id)) {
+    state.completedSocialEvents.push(id);
+    resolution.summary = "장부보다 갇힌 인부들을 먼저 구출했다. 인부들이 창고 밖으로 빠져나갈 길을 확보했다.";
+    recordReputation(state, { id: "workers_rescued", axis: "mercy", amount: 2, audience: "구출된 인부들", scope: "갈대밭 폐창고 · 현장 목격자", source: "구출된 인부들의 목격", certainty: "목격", text: "증거보다 사람의 목숨을 먼저 챙긴 이로 기억한다.", cause: "갇힌 인부들을 먼저 구출함" });
     state.delayedConsequences.push({
       id: `workers_testimony_${state.turn}`,
       cause: "창고 인부들을 먼저 구출함",
@@ -556,14 +561,15 @@ function applyChoiceEffects(state, action, resolution) {
     resolution.gains.push("살아 있는 증인");
   }
 
-  if (id === "steal_ledger" && positive) {
+  if (id === "steal_ledger" && positive && !state.completedSocialEvents.includes(id)) {
+    state.completedSocialEvents.push(id);
     addClue(state, {
       id: "coded_ledger",
       text: "장부의 운송 경로가 수맥도와 같은 방식의 점선으로 표시되어 있다",
       source: "검은 소금 장부",
       certainty: "객관적 사실",
     }, resolution);
-    state.delayedConsequences.push({
+    if (!state.completedSocialEvents.includes("rescue_workers")) state.delayedConsequences.push({
       id: `abandoned_workers_${state.turn}`,
       cause: "장부를 먼저 확보함",
       target: "baekro_people",
@@ -643,6 +649,8 @@ function transitionTo(state, sceneId, resolution) {
   const scene = SCENES[sceneId];
   state.world.sceneId = sceneId;
   state.world.location = scene.location;
+  state.world.regionId = sceneId === "cheongryu_gate" ? "cheongryu" : "baekro_dock";
+  meetSceneNpcs(state);
   state.world.sceneProgress = 0;
   resolution.sceneTransition = { from: before, to: sceneId };
   resolution.changedSituation = `${scene.location}의 새 목표가 열렸다: ${scene.objective}`;
@@ -676,6 +684,8 @@ function resolveOpeningQuest(state, path, resolution) {
 
   if (faction !== "none") {
     changeFaction(state, faction, "standing", 2, "장부와 증거를 공유함", resolution);
+    const factionName = FACTIONS.find((entry) => entry.id === faction).name;
+    recordReputation(state, { id: `evidence_${faction}`, axis: "reliability", amount: 2, audience: factionName, scope: `청류현 · ${factionName}`, source: "증거를 받은 담당자", certainty: "직접 전달", text: "사건의 증거를 건넨 협력자로 알려졌다.", cause: "첫 사건의 장부와 증거를 공유함" });
     state.delayedConsequences.push({
       id: `chosen_faction_${state.turn}`,
       cause: `첫 증거를 ${faction}에 제공함`,
@@ -811,7 +821,11 @@ function addClue(state, clue, resolution) {
   state.clues.push({ ...clue, acquiredTurn: state.turn, status: "unconnected" });
   resolution.revealedClues.push(clue.text);
   resolution.gains.push(`단서: ${clue.text}`);
-  state.facts.confirmed.push({ id: clue.id, text: clue.text, source: clue.source });
+  if (clue.certainty === "객관적 사실") {
+    state.facts.confirmed.push({ id: clue.id, text: clue.text, source: clue.source });
+  } else {
+    state.facts.claims.push({ id: clue.id, text: clue.text, speaker: clue.source, reliability: clue.certainty });
+  }
 }
 
 function sceneClue(sceneId, clues) {
@@ -884,10 +898,17 @@ function changeRelation(state, npcId, axis, amount, cause, resolution) {
     state.relationships[npcId] = { trust: 0, affection: 0, fear: 0, debt: 0, interest: 0, knownFacts: [] };
   }
   const relation = state.relationships[npcId];
+  relation.met = true;
+  relation.firstMetAt ||= state.world.location;
   const before = relation[axis] || 0;
   relation[axis] = Math.max(-6, Math.min(6, before + amount));
+  const delta = relation[axis] - before;
+  if (!delta) return;
+  relation.events ||= [];
+  relation.events.push({ turn: state.turn, axis: RELATION_LABELS[axis] || axis, delta, cause });
+  relation.events = relation.events.slice(-12);
   const npc = NPCS.find((entry) => entry.id === npcId);
-  resolution[amount >= 0 ? "gains" : "costs"].push(`${npc?.name || npcId} ${axis} ${amount >= 0 ? "+" : ""}${amount}`);
+  resolution[delta >= 0 ? "gains" : "costs"].push(`${npc?.name || npcId} ${RELATION_LABELS[axis] || axis} ${delta >= 0 ? "+" : ""}${delta}`);
   recordChange(state, {
     path: `relationships.${npcId}.${axis}`,
     before,
@@ -902,7 +923,7 @@ function changeFaction(state, factionId, axis, amount, cause, resolution) {
   const faction = state.factions[factionId];
   const before = faction[axis];
   faction[axis] = Math.max(-6, Math.min(6, before + amount));
-  resolution.gains.push(`${factionId} 관계 +${amount}`);
+  resolution.gains.push(`${FACTIONS.find((entry) => entry.id === factionId)?.name || factionId} 관계 +${amount}`);
   recordChange(state, {
     path: `factions.${factionId}.${axis}`,
     before,
@@ -958,8 +979,10 @@ function processDueConsequences(state) {
     if (consequence.effect === "workers_testimony") {
       state.factions.river_alliance.heat = Math.max(0, state.factions.river_alliance.heat - 1);
       events.push("구출된 인부들이 위조된 수로맹 도장을 증언했다.");
+      recordReputation(state, { id: "workers_word_spread", axis: "fame", amount: 1, audience: "백로진 사람들과 수로맹", scope: "백로진 일대", source: "구출된 인부들의 증언", certainty: "증언", text: "창고에서 인부들을 구했다는 이야기가 전해졌다.", cause: "인부들이 나루로 돌아와 구조 소식을 전함" });
     } else if (consequence.effect === "workers_hurt") {
-      state.player.reputation.mercy -= 1;
+      if (state.completedSocialEvents.includes("rescue_workers")) continue;
+      recordReputation(state, { id: "workers_hurt", axis: "mercy", amount: -1, audience: "백로진 사람들", scope: "백로진 일대", source: "뒤늦은 구조 소식", certainty: "전언", text: "장부를 먼저 챙기는 동안 인부의 구조가 늦어졌다는 말이 돈다.", cause: "장부를 우선한 뒤 부상 소식이 전해짐" });
       events.push("뒤늦게 구출된 인부 하나가 크게 다쳤다는 소식이 퍼졌다.");
     } else if (consequence.effect === "faction_response") {
       state.factions[consequence.target].clock += 1;
@@ -1273,30 +1296,16 @@ function advanceRealm(state, resolution) {
 }
 
 function describePlayerAction(state, action, resolution) {
-  const name = state.player.name;
   const declaration = cleanInline(action.declaration);
-  const topicParticle = hasFinalConsonant(name) ? "은" : "는";
-  const declarationSentence = /[.!?]$/.test(declaration) ? declaration : `${declaration}.`;
-  const methods = {
-    investigate: "눈에 보이는 흔적만 훑지 않고 순서와 어긋난 부분을 비교하며, 누가 무엇을 숨기려 했는지까지 좁혀 간다.",
-    talk: "상대가 직접 본 사실과 전해 들은 소문을 구분하도록 질문의 순서를 고르고, 표정과 망설임도 함께 살핀다.",
-    combat: "무작정 힘을 겨루지 않고 거리와 발의 방향을 재어 자신의 초식을 펼칠 순간을 만든다.",
-    defend: "공격을 막는 데 그치지 않고 충격을 흘리면서 상대의 반복되는 버릇과 다음 빈틈을 읽는다.",
-    move: "가장 짧은 길보다 시야와 퇴로가 남는 동선을 택하고, 추적당할 경우의 이탈 지점까지 계산한다.",
-    train: "동작의 횟수보다 호흡과 힘이 이어지는 순간에 집중하고, 몸이 보내는 이상 신호가 오면 즉시 흐름을 조절한다.",
-    breakthrough: "지금까지 쌓은 숙련과 실전의 기억을 한 호흡에 모아 막힌 기혈과 의념의 경계를 밀어낸다.",
-    rest: "상처와 호흡을 먼저 점검하고, 주변의 경계가 느슨해지지 않도록 짧고 안전한 회복만 취한다.",
-    creative: "주변 환경과 인물의 반응을 도구로 삼되, 한 번 실패해도 물러날 수 있는 여지를 남긴다.",
-    status: "성급히 움직이지 않고 몸 상태와 확보한 정보, 남은 시간과 위험을 차례로 확인한다.",
-  };
-  const leverage = resolution.advantages.length
-    ? `특히 ${resolution.advantages.join(", ")}을 활용해 성공 가능성을 높인다.`
-    : "성과가 보장된 행동은 아니므로 상대의 반응에 따라 즉시 방법을 바꿀 준비도 한다.";
-  const risk = action.choice?.risk || resolution.disadvantages.at(0);
-  const riskText = risk
-    ? `그 과정에서 ${cleanInline(risk)}의 위험을 감수하지만, 목표를 놓치지 않는 범위에서만 밀어붙인다.`
-    : "필요 이상의 위험은 만들지 않고 다음 행동에 쓸 힘과 정보를 남긴다.";
-  return `${name}${topicParticle} 행동의 목표와 순서를 분명히 정한다. ${declarationSentence} ${methods[action.intent] || methods.creative} ${leverage} ${riskText}`;
+  // Preserve the player's declaration; the narrator describes consequences separately.
+  return /[.!?。！？][”’"']*$/.test(declaration) ? declaration : `${declaration}.`;
+}
+
+function targetNpc(state, action) {
+  if (action.choice?.id === "question_boatman") return "gang_mujin";
+  const present = SCENE_NPCS[state.world.sceneId] || [];
+  return NPCS.find((npc) => present.includes(npc.id) && action.declaration.includes(npc.name))?.id
+    || sceneNpc(state.world.sceneId);
 }
 
 function npcDialogue(npc, outcome) {

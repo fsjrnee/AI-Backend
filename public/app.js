@@ -213,6 +213,7 @@ function updateGame(result) {
   renderList("#goal-list", state.goals.active, "진행 중인 목표가 없습니다.");
   renderClues(state.clues);
   renderRelationships(state.relationships);
+  renderSocialContext(state);
   renderGrowth(state.player);
   renderChoices(result.choices || []);
 }
@@ -282,7 +283,10 @@ function appendMessage(text, role, resolution) {
   }
 
   elements.messages.append(item);
-  elements.messages.scrollTop = elements.messages.scrollHeight;
+  // Long scenes open at their beginning, so the first paragraphs are not skipped.
+  elements.messages.scrollTop = role === "narrator"
+    ? Math.max(0, item.offsetTop - 26)
+    : elements.messages.scrollHeight;
   return item;
 }
 
@@ -340,12 +344,72 @@ function renderRelationships(relationships) {
   container.replaceChildren(...entries.map((relation) => {
     const item = document.createElement("div");
     const name = document.createElement("strong");
-    const state = document.createElement("span");
+    const stage = document.createElement("span");
+    const description = document.createElement("p");
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    const axes = document.createElement("p");
     item.className = "relationship";
-    name.textContent = relation.name;
-    state.textContent =
-      `${relation.stage} · 신뢰 ${signed(relation.trust)} · 빚 ${signed(relation.debt)} · 경계 ${relation.fear}`;
-    item.append(name, state);
+    name.textContent = `${relation.name} · ${relation.role}`;
+    stage.textContent = relation.stage;
+    stage.className = "relation-stage";
+    description.textContent = relation.description;
+    summary.textContent = "인연의 기록";
+    axes.textContent = `신뢰 ${signed(relation.trust)} · 호의 ${signed(relation.affection)} · 두려움 ${relation.fear} · 이해관계 ${signed(relation.interest)}`;
+    details.append(summary, axes);
+    for (const event of relation.recentEvents || []) {
+      const entry = document.createElement("p");
+      entry.textContent = `${event.turn}턴 · ${event.cause} (${event.axis} ${signed(event.delta)})`;
+      details.append(entry);
+    }
+    for (const obligation of relation.obligations || []) {
+      const entry = document.createElement("p");
+      entry.textContent = obligation;
+      details.append(entry);
+    }
+    if (!relation.recentEvents?.length) {
+      const entry = document.createElement("p");
+      entry.textContent = `${relation.firstMetAt}에서 처음 마주쳤다.`;
+      details.append(entry);
+    }
+    item.append(name, stage, description, details);
+    return item;
+  }));
+}
+
+function renderSocialContext(state) {
+  const bond = state.startingBond;
+  const bondBox = document.querySelector("#starting-bond");
+  bondBox.replaceChildren();
+  if (bond) {
+    const title = document.createElement("strong");
+    const description = document.createElement("p");
+    title.textContent = bond.name;
+    description.textContent = `${bond.description} · ${bond.status}`;
+    bondBox.append(title, description);
+  }
+  const reputation = state.reputation || { events: [], factions: [] };
+  document.querySelector("#reputation-summary").textContent = reputation.summary || "아직 강호에 알려진 행적이 없다.";
+  document.querySelector("#reputation-list").replaceChildren(...reputation.events.map((event) => {
+    const item = document.createElement("article");
+    item.className = "relationship reputation-event";
+    const audience = document.createElement("strong");
+    const story = document.createElement("p");
+    const source = document.createElement("span");
+    audience.textContent = event.audience;
+    story.textContent = `${event.text} ${event.cause}.`;
+    source.textContent = `${event.turn}턴 · ${event.scope} · ${event.source} (${event.certainty})`;
+    item.append(audience, story, source);
+    return item;
+  }));
+  document.querySelector("#faction-list").replaceChildren(...reputation.factions.map((faction) => {
+    const item = document.createElement("div");
+    item.className = "relationship";
+    const title = document.createElement("strong");
+    const description = document.createElement("p");
+    title.textContent = faction.name;
+    description.textContent = `${faction.description} ${faction.cause}.`;
+    item.append(title, description);
     return item;
   }));
 }

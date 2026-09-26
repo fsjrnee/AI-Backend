@@ -90,7 +90,9 @@ async function requestGroq(options) {
     options,
   );
 
-  return requireReply(data.choices?.[0]?.message?.content);
+  const choice = data.choices?.[0];
+  requireCompletion(!choice?.finish_reason || choice.finish_reason === "stop");
+  return requireReply(choice?.message?.content);
 }
 
 async function requestOpenAI(options) {
@@ -113,6 +115,7 @@ async function requestOpenAI(options) {
     options,
   );
 
+  requireCompletion((!data.status || data.status === "completed") && !data.incomplete_details);
   const reply = data.output_text
     || data.output
       ?.flatMap((item) => item.content || [])
@@ -142,7 +145,10 @@ async function requestGemini(options) {
     options,
   );
 
-  const reply = data.candidates?.[0]?.content?.parts
+  const candidate = data.candidates?.[0];
+  requireCompletion(!candidate?.finishReason || candidate.finishReason === "STOP");
+  const reply = candidate?.content?.parts
+    ?.filter((part) => !part.thought)
     ?.map((part) => part.text || "")
     .join("");
 
@@ -209,6 +215,12 @@ function requireReply(value) {
   }
 
   return value.trim();
+}
+
+function requireCompletion(complete) {
+  if (!complete) {
+    throw new AiServiceError("AI가 서술을 끝까지 완성하지 못했습니다.", 502, "AI_INCOMPLETE_RESPONSE");
+  }
 }
 
 function parsePositiveInteger(value, fallback) {
